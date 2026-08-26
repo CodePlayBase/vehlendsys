@@ -1,0 +1,6 @@
+{
+  "name": "Vehicle Lending System",
+  "description": "Multi-client vehicle lending platform ecosystem supporting Cars, Bikes, and Bicycles across Web Admin, Mobile Customer, and C# WinForms Desktop Worker applications with centralized mock REST API.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
