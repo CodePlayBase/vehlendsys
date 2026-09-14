@@ -47,7 +47,10 @@ app.get('/', (req, res) => {
       'GET    /api/users',
       'GET    /api/transactions',
       'POST   /api/transactions',
+      'GET    /api/transactions/pending',
       'PATCH  /api/transactions/:id',
+      'PATCH  /api/transactions/:id/approve',
+      'PATCH  /api/transactions/:id/reject',
       'GET    /api/hubs',
       'GET    /api/stats',
     ],
@@ -168,6 +171,15 @@ app.get('/api/transactions', async (req, res) => {
   res.json(result);
 });
 
+// ============================================================
+// PENDING LIST — shortcut untuk web admin
+// ============================================================
+app.get('/api/transactions/pending', async (req, res) => {
+  await delay();
+  const pending = db.transactions.filter((t) => t.status === 'pending_verification');
+  res.json(pending);
+});
+
 app.get('/api/transactions/:id', async (req, res) => {
   await delay();
   const t = db.transactions.find((x) => x.id === req.params.id);
@@ -185,14 +197,16 @@ app.post('/api/transactions', async (req, res) => {
   };
   db.transactions.unshift(newTx);
 
-  // Side-effect: tandai kendaraan jadi reserved
-  const vehIdx = db.vehicles.findIndex((v) => v.id === newTx.vehicleId);
-  if (vehIdx !== -1) {
-    db.vehicles[vehIdx].status = 'reserved';
-  }
+  // TIDAK ada side effect di sini.
+  // Kendaraan tetap "available" sampai admin approve.
+  // Kalau ada 2 customer ajukan kendaraan yang sama,
+  // admin bisa pilih salah satu (first-come-first-served).
+  console.log(`📝 New pending transaction: ${newTx.id} for vehicle ${newTx.vehicleId}`);
 
   res.status(201).json(newTx);
 });
+
+
 
 app.patch('/api/transactions/:id', async (req, res) => {
   await delay();
@@ -204,17 +218,6 @@ app.patch('/api/transactions/:id', async (req, res) => {
     ...req.body,
     updatedAt: new Date().toISOString(),
   };
-
-  // Side-effect: kalau transaksi approved/active, ubah status kendaraan
-  const tx = db.transactions[idx];
-  const vehIdx = db.vehicles.findIndex((v) => v.id === tx.vehicleId);
-  if (vehIdx !== -1) {
-    if (tx.status === 'approved' || tx.status === 'active') {
-      db.vehicles[vehIdx].status = 'rented';
-    } else if (tx.status === 'completed' || tx.status === 'cancelled' || tx.status === 'rejected') {
-      db.vehicles[vehIdx].status = 'available';
-    }
-  }
 
   res.json(db.transactions[idx]);
 });
@@ -265,11 +268,112 @@ app.get('/api/stats', async (req, res) => {
 // ============================================================
 app.post('/api/reset', (req, res) => {
   db = JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
-  res.json({ message: 'Database reset to initial state', counts: {
-    vehicles: db.vehicles.length,
-    users: db.users.length,
-    transactions: db.transactions.length,
-  }});
+  res.json({
+    message: 'Database reset to initial state', counts: {
+      vehicles: db.vehicles.length,
+      users: db.users.length,
+      transactions: db.transactions.length,
+    }
+  });
+});
+
+// ============================================================
+// APPROVE — Admin menyetujui peminjaman
+// Side effect: kendaraan otomatis jadi "rented"
+// ============================================================
+app.patch('/api/transactions/:id/approve', async (req, res) => {
+  await delay();
+
+  const { approvedByAdminId } = req.body || {};
+  const idx = db.transactions.findIndex((x) => x.id === req.params.id);
+
+  if (idx === -1) {
+    return res.status(404).json({ message: 'Transaction not found' });
+  }
+
+  const tx = db.transactions[idx];
+
+  // Validasi state
+  if (tx.status !== 'pending_verification') {
+    return res.status(400).json({
+      message: `Cannot approve transaction with status "${tx.status}". Only "pending_verification" can be approved.`,
+    });
+  }
+
+  // Cek kendaraan masih available
+  const vehIdx = db.vehicles.findIndex((v) => v.id === tx.vehicleId);
+  if (vehIdx === -1) {
+    return res.status(404).json({ message: 'Vehicle not found' });
+  }
+
+  if (db.vehicles[vehIdx].status !== 'available') {
+    return res.status(409).json({
+      message: `Vehicle is no longer available (current status: ${db.vehicles[vehIdx].status}).`,
+    });
+  }
+
+  // Update transaction
+  db.transactions[idx] = {
+    ...tx,
+    status: 'active',
+    approvedByAdminId: approvedByAdminId || null,
+    updatedAt: new Date().toISOString(),
+  };
+
+  // Side effect: kendaraan jadi rented
+  db.vehicles[vehIdx].status = 'rented';
+
+  console.log(`✅ APPROVED: ${tx.id} — vehicle ${db.vehicles[vehIdx].id} → rented`);
+
+  res.json({
+    transaction: db.transactions[idx],
+    vehicle: db.vehicles[vehIdx],
+  });
+});
+
+// ============================================================
+// REJECT — Admin menolak peminjaman
+// Side effect: kendaraan kembali "available" (kalau sebelumnya reserved)
+// ============================================================
+app.patch('/api/transactions/:id/reject', async (req, res) => {
+  await delay();
+
+  const { reason, approvedByAdminId } = req.body || {};
+  const idx = db.transactions.findIndex((x) => x.id === req.params.id);
+
+  if (idx === -1) {
+    return res.status(404).json({ message: 'Transaction not found' });
+  }
+
+  const tx = db.transactions[idx];
+
+  if (tx.status !== 'pending_verification') {
+    return res.status(400).json({
+      message: `Cannot reject transaction with status "${tx.status}".`,
+    });
+  }
+
+  // Update transaction
+  db.transactions[idx] = {
+    ...tx,
+    status: 'rejected',
+    notes: reason ? `${tx.notes || ''}\n[REJECTED] ${reason}`.trim() : tx.notes,
+    approvedByAdminId: approvedByAdminId || null,
+    updatedAt: new Date().toISOString(),
+  };
+
+  // Side effect: kendaraan yang sebelumnya "reserved" balik ke "available"
+  const vehIdx = db.vehicles.findIndex((v) => v.id === tx.vehicleId);
+  if (vehIdx !== -1 && db.vehicles[vehIdx].status === 'reserved') {
+    db.vehicles[vehIdx].status = 'available';
+  }
+
+  console.log(`❌ REJECTED: ${tx.id}`);
+
+  res.json({
+    transaction: db.transactions[idx],
+    vehicle: vehIdx !== -1 ? db.vehicles[vehIdx] : null,
+  });
 });
 
 // ===== START =====

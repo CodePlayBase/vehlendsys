@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
-  SafeAreaView,
   StatusBar,
   TextInput,
   Modal,
@@ -17,70 +16,10 @@ import {
   Platform,
 } from 'react-native';
 
-// ============================================================
-// TYPES (copy dari src/types/index.ts atau import dari sana)
-// ============================================================
-// type VehicleType = 'car' | 'bike' | 'bicycle';
-// type VehicleStatus = 'available' | 'rented' | 'maintenance' | 'reserved';
-
-// interface Vehicle {
-//   id: string;
-//   name: string;
-//   brand: string;
-//   model: string;
-//   type: VehicleType;
-//   licensePlate?: string;
-//   serialNumber: string;
-//   status: VehicleStatus;
-//   hourlyRate: number;
-//   dailyRate: number;
-//   fuelOrBatteryLevel: number;
-//   locationHub: string;
-//   imageUrl: string;
-//   year: number;
-//   transmission?: 'automatic' | 'manual' | 'n/a';
-//   seats?: number;
-//   conditionNotes?: string;
-//   lastMaintainedDate: string;
-//   createdAt: string;
-// }
-
-// interface User {
-//   id: string;
-//   fullName: string;
-//   email: string;
-//   avatarUrl: string;
-//   verificationStatus: 'verified' | 'pending' | 'rejected';
-//   driverLicenseNumber?: string;
-//   membershipTier: 'standard' | 'premium' | 'vip';
-//   totalRentals: number;
-//   role: 'admin' | 'customer' | 'worker';
-// }
-
-// interface Transaction {
-//   id: string;
-//   userId: string;
-//   vehicleId: string;
-//   userName: string;
-//   vehicleName: string;
-//   vehicleType: VehicleType;
-//   licensePlate?: string;
-//   startDateTime: string;
-//   endDateTime: string;
-//   durationHours: number;
-//   totalCost: number;
-//   status: 'pending_verification' | 'approved' | 'active' | 'completed' | 'cancelled' | 'rejected';
-//   paymentStatus: 'paid' | 'pending' | 'refunded' | 'failed';
-//   paymentMethod: 'credit_card' | 'e_wallet' | 'cash_at_hub';
-//   pickupHub: string;
-//   dropoffHub: string;
-//   createdAt: string;
-//   updatedAt: string;
-// }
-
 import { apiClient } from './src/api/client';
 import type { Vehicle, User, Transaction, VehicleType, VehicleStatus } from './src/types';
-import { normalizeVehicle, normalizeVehicles } from './src/api/normalizer';
+import { normalizeTransactions, normalizeVehicles } from './src/api/normalizer';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Hub didefinisikan lokal (males fetch, cuma 5 string)
 const HUBS = [
@@ -93,14 +32,14 @@ const HUBS = [
 
 // Dummy customer untuk demo (nanti ganti dengan hasil login)
 const DUMMY_CUSTOMER: User = {
-  id: 'usr_001',
-  fullName: 'Sarah Jenkins',
-  email: 'sarah.j@example.com',
-  phoneNumber: '+1-555-0192',
+  id: 'USR-CUS-01',
+  fullName: 'Ahmad Fauzi',
+  email: 'ahmad.fauzi@student.univ.ac.id',
+  phoneNumber: '+6287811223344',
   role: 'customer',
-  avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
+  avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
   verificationStatus: 'verified',
-  driverLicenseNumber: 'DL-98472910-A',
+  driverLicenseNumber: 'SIM A - 98012398412',
   idCardNumber: 'ID-7728109',
   membershipTier: 'premium',
   rating: 4.9,
@@ -108,152 +47,43 @@ const DUMMY_CUSTOMER: User = {
   createdAt: '2026-01-15T08:30:00Z',
 };
 
-// const INITIAL_VEHICLES: Vehicle[] = [
-//   {
-//     id: 'veh_001', name: 'Tesla Model 3 Long Range', brand: 'Tesla', model: 'Model 3 LR',
-//     type: 'car', licensePlate: 'EV-849-TX', serialNumber: 'TSLA3-998201-2025',
-//     status: 'available', hourlyRate: 18.5, dailyRate: 95, fuelOrBatteryLevel: 92,
-//     locationHub: 'Downtown Central Station',
-//     imageUrl: 'https://images.unsplash.com/photo-1536700503339-1e4b06520771?w=600',
-//     year: 2025, transmission: 'automatic', seats: 5,
-//     conditionNotes: 'Pristine condition.', lastMaintainedDate: '2026-02-18', createdAt: '2025-06-10T10:00:00Z',
-//   },
-//   {
-//     id: 'veh_002', name: 'Toyota RAV4 Hybrid', brand: 'Toyota', model: 'RAV4 AWD',
-//     type: 'car', licensePlate: 'HY-204-CA', serialNumber: 'TOY-RAV-448201',
-//     status: 'rented', hourlyRate: 14, dailyRate: 75, fuelOrBatteryLevel: 78,
-//     locationHub: 'Northside Metro Hub',
-//     imageUrl: 'https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=600',
-//     year: 2024, transmission: 'automatic', seats: 5,
-//     conditionNotes: 'On active loan.', lastMaintainedDate: '2026-02-10', createdAt: '2025-04-14T09:30:00Z',
-//   },
-//   {
-//     id: 'veh_003', name: 'Hyundai Ioniq 5 EV', brand: 'Hyundai', model: 'Ioniq 5 Ultimate',
-//     type: 'car', licensePlate: 'EL-512-NV', serialNumber: 'HYU-ION-558291',
-//     status: 'maintenance', hourlyRate: 16, dailyRate: 85, fuelOrBatteryLevel: 35,
-//     locationHub: 'Airport Terminus Hub',
-//     imageUrl: 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=600',
-//     year: 2025, transmission: 'automatic', seats: 5,
-//     conditionNotes: 'Brake inspection.', lastMaintainedDate: '2026-02-23', createdAt: '2025-07-20T13:00:00Z',
-//   },
-//   {
-//     id: 'veh_004', name: 'Honda CB500X Adventure', brand: 'Honda', model: 'CB500X',
-//     type: 'bike', licensePlate: 'BK-902-NY', serialNumber: 'HON-CB5-102948',
-//     status: 'available', hourlyRate: 8.5, dailyRate: 45, fuelOrBatteryLevel: 85,
-//     locationHub: 'Downtown Central Station',
-//     imageUrl: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?w=600',
-//     year: 2024, transmission: 'manual', seats: 2,
-//     conditionNotes: 'Helmet provided.', lastMaintainedDate: '2026-02-15', createdAt: '2025-08-01T11:00:00Z',
-//   },
-//   {
-//     id: 'veh_005', name: 'Yamaha NMAX 155cc Scooter', brand: 'Yamaha', model: 'NMAX 155 ABS',
-//     type: 'bike', licensePlate: 'SC-331-FL', serialNumber: 'YAM-NM1-884920',
-//     status: 'available', hourlyRate: 6, dailyRate: 32, fuelOrBatteryLevel: 95,
-//     locationHub: 'West End District Hub',
-//     imageUrl: 'https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?w=600',
-//     year: 2025, transmission: 'automatic', seats: 2,
-//     conditionNotes: 'Full tank.', lastMaintainedDate: '2026-02-21', createdAt: '2025-09-12T14:30:00Z',
-//   },
-//   {
-//     id: 'veh_006', name: 'Zero DSR Electric Dual-Sport', brand: 'Zero Motorcycles', model: 'DSR ZF14.4',
-//     type: 'bike', licensePlate: 'EB-771-WA', serialNumber: 'ZER-DSR-449102',
-//     status: 'reserved', hourlyRate: 12, dailyRate: 65, fuelOrBatteryLevel: 90,
-//     locationHub: 'Northside Metro Hub',
-//     imageUrl: 'https://images.unsplash.com/photo-1599819811279-d5ad9cccf838?w=600',
-//     year: 2025, transmission: 'automatic', seats: 2,
-//     conditionNotes: 'Reserved.', lastMaintainedDate: '2026-02-19', createdAt: '2025-10-05T08:00:00Z',
-//   },
-//   {
-//     id: 'veh_007', name: 'Trek Allant+ 8 Electric City Bike', brand: 'Trek', model: 'Allant+ 8',
-//     type: 'bicycle', licensePlate: 'N/A (Bicycle)', serialNumber: 'TRK-EBIKE-88392',
-//     status: 'available', hourlyRate: 3.5, dailyRate: 20, fuelOrBatteryLevel: 88,
-//     locationHub: 'Downtown Central Station',
-//     imageUrl: 'https://images.unsplash.com/photo-1485965120184-e220f721d03e?w=600',
-//     year: 2025, transmission: 'n/a', seats: 1,
-//     conditionNotes: 'Bosch smart motor.', lastMaintainedDate: '2026-02-22', createdAt: '2025-05-18T10:15:00Z',
-//   },
-//   {
-//     id: 'veh_008', name: 'Specialized Sirrus X 4.0 Gravel', brand: 'Specialized', model: 'Sirrus X 4.0',
-//     type: 'bicycle', licensePlate: 'N/A (Bicycle)', serialNumber: 'SPC-SRX-102938',
-//     status: 'available', hourlyRate: 2.5, dailyRate: 15, fuelOrBatteryLevel: 100,
-//     locationHub: 'West End District Hub',
-//     imageUrl: 'https://images.unsplash.com/photo-1532298229144-0ec0c57515c7?w=600',
-//     year: 2024, transmission: 'manual', seats: 1,
-//     conditionNotes: 'Includes U-lock.', lastMaintainedDate: '2026-02-14', createdAt: '2025-06-02T15:00:00Z',
-//   },
-//   {
-//     id: 'veh_009', name: 'Giant FastRoad E+ EX Pro', brand: 'Giant', model: 'FastRoad E+',
-//     type: 'bicycle', licensePlate: 'N/A (Bicycle)', serialNumber: 'GNT-FST-552910',
-//     status: 'maintenance', hourlyRate: 3.5, dailyRate: 22, fuelOrBatteryLevel: 45,
-//     locationHub: 'Northside Metro Hub',
-//     imageUrl: 'https://images.unsplash.com/photo-1576435728678-68d0fbf94e91?w=600',
-//     year: 2025, transmission: 'n/a', seats: 1,
-//     conditionNotes: 'Chain adjustment.', lastMaintainedDate: '2026-02-24', createdAt: '2025-07-11T12:00:00Z',
-//   },
-// ];
-
-// const INITIAL_USERS: User[] = [
-//   {
-//     id: 'usr_001', fullName: 'Sarah Jenkins', email: 'sarah.j@example.com',
-//     avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-//     verificationStatus: 'verified', driverLicenseNumber: 'DL-98472910-A',
-//     membershipTier: 'premium', totalRentals: 14, role: 'customer',
-//   },
-//   {
-//     id: 'usr_002', fullName: 'Marcus Vance', email: 'marcus.vance@example.com',
-//     avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-//     verificationStatus: 'pending', driverLicenseNumber: 'DL-11827402-B',
-//     membershipTier: 'standard', totalRentals: 2, role: 'customer',
-//   },
-//   {
-//     id: 'usr_006', fullName: 'Aisha Patel', email: 'aisha.patel@example.com',
-//     avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150',
-//     verificationStatus: 'pending', driverLicenseNumber: 'DL-77382910-K',
-//     membershipTier: 'standard', totalRentals: 1, role: 'customer',
-//   },
-// ];
-
-// const INITIAL_TRANSACTIONS: Transaction[] = [
-//   {
-//     id: 'tx_1001', userId: 'usr_001', vehicleId: 'veh_002',
-//     userName: 'Sarah Jenkins', vehicleName: 'Toyota RAV4 Hybrid', vehicleType: 'car',
-//     licensePlate: 'HY-204-CA',
-//     startDateTime: '2026-02-24T08:00:00Z', endDateTime: '2026-02-25T08:00:00Z',
-//     durationHours: 24, totalCost: 75, status: 'active', paymentStatus: 'paid',
-//     paymentMethod: 'credit_card', pickupHub: 'Downtown Central Station',
-//     dropoffHub: 'Northside Metro Hub', createdAt: '2026-02-23T19:20:00Z', updatedAt: '2026-02-24T08:05:00Z',
-//   },
-// ];
-
 // ============================================================
 // STATUS HELPERS
 // ============================================================
 const STATUS_META: Record<VehicleStatus, { label: string; bg: string; fg: string }> = {
-  available:   { label: '🟢 Tersedia',       bg: '#dcfce7', fg: '#15803d' },
-  rented:      { label: '🟡 Sedang Disewa',  bg: '#fef3c7', fg: '#b45309' },
-  maintenance: { label: '🔴 Perbaikan',      bg: '#fee2e2', fg: '#b91c1c' },
-  reserved:    { label: '🔵 Dipesan',        bg: '#dbeafe', fg: '#1d4ed8' },
+  available: { label: '🟢 Tersedia', bg: '#dcfce7', fg: '#15803d' },
+  rented: { label: '🟡 Sedang Disewa', bg: '#fef3c7', fg: '#b45309' },
+  maintenance: { label: '🔴 Perbaikan', bg: '#fee2e2', fg: '#b91c1c' },
+  reserved: { label: '🔵 Dipesan', bg: '#dbeafe', fg: '#1d4ed8' },
 };
 
 const TX_STATUS_META: Record<Transaction['status'], { label: string; bg: string; fg: string }> = {
   pending_verification: { label: 'Menunggu Verifikasi', bg: '#fef3c7', fg: '#b45309' },
-  approved:             { label: 'Disetujui',           bg: '#dbeafe', fg: '#1d4ed8' },
-  active:               { label: 'Aktif',               bg: '#dcfce7', fg: '#15803d' },
-  completed:            { label: 'Selesai',             bg: '#e2e8f0', fg: '#475569' },
-  cancelled:            { label: 'Dibatalkan',          bg: '#fee2e2', fg: '#b91c1c' },
-  rejected:             { label: 'Ditolak',             bg: '#fee2e2', fg: '#b91c1c' },
+  approved: { label: 'Disetujui', bg: '#dbeafe', fg: '#1d4ed8' },
+  active: { label: 'Aktif', bg: '#dcfce7', fg: '#15803d' },
+  completed: { label: 'Selesai', bg: '#e2e8f0', fg: '#475569' },
+  cancelled: { label: 'Dibatalkan', bg: '#fee2e2', fg: '#b91c1c' },
+  rejected: { label: 'Ditolak', bg: '#fee2e2', fg: '#b91c1c' },
 };
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <VehicleCatalogScreen />
+    </SafeAreaProvider>
+  );
+}
 
 // ============================================================
 // MAIN SCREEN
 // ============================================================
-export default function VehicleCatalogScreen() {
+export function VehicleCatalogScreen() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-const [transactions, setTransactions] = useState<Transaction[]>([]);
-const [activeCustomer] = useState<User>(DUMMY_CUSTOMER);
-const [refreshing, setRefreshing] = useState(false);
-const [isLoading, setIsLoading] = useState(false);
-const [error, setError] = useState<string | null>(null);   // ← FIX UTAMA
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [activeCustomer] = useState<User>(DUMMY_CUSTOMER);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);   // ← FIX UTAMA
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<'all' | VehicleType>('all');
@@ -270,29 +100,42 @@ const [error, setError] = useState<string | null>(null);   // ← FIX UTAMA
 
   // -------- FETCH (simulasi) --------
   const fetchVehicles = useCallback(async () => {
-  setIsLoading(true);
-  setError(null);
+    setIsLoading(true);
+    setError(null);
+    try {
+      const raw = await apiClient.get<any[]>('/vehicles');
+      const data = normalizeVehicles(raw);  // ← NORMALIZE
+      console.log('✅ Normalized first vehicle:', JSON.stringify(data[0], null, 2));
+      setVehicles(data);
+    } catch (err) {
+      console.error('Fetch error:', err);
+      setError(err instanceof Error ? err.message : 'Gagal memuat');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const fetchTransactions = useCallback(async () => {
   try {
-     const raw = await apiClient.get<any[]>('/vehicles');
-    const data = normalizeVehicles(raw);  // ← NORMALIZE
-    console.log('✅ Normalized first vehicle:', JSON.stringify(data[0], null, 2));
-    setVehicles(data);
+    const raw = await apiClient.get<any[]>('/transactions');
+    const data = normalizeTransactions(raw); 
+    // Kalau mau filter khusus user ini:
+    const mine = raw.filter((t) => t.userId === activeCustomer.id);
+    setTransactions(data);
   } catch (err) {
-    console.error('Fetch error:', err);
-    setError(err instanceof Error ? err.message : 'Gagal memuat');
-  } finally {
-    setIsLoading(false);
+    console.error('Fetch transactions error:', err);
   }
-}, []);
+}, [activeCustomer.id]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchVehicles();
+    await Promise.all([fetchVehicles(), fetchTransactions()]);
     setRefreshing(false);
   };
 
   React.useEffect(() => {
     fetchVehicles();
+    fetchTransactions();
   }, [fetchVehicles]);
 
   // -------- FILTER --------
@@ -325,39 +168,40 @@ const [error, setError] = useState<string | null>(null);   // ← FIX UTAMA
     setModalVisible(true);
   };
 
-const handleConfirmBorrow = async () => {
-  if (!selectedVehicle) return;
+  const handleConfirmBorrow = async () => {
+    if (!selectedVehicle) return;
 
-  const totalCost =
-    durationHours >= 24
-      ? Math.ceil(durationHours / 24) * selectedVehicle.dailyRate
-      : durationHours * selectedVehicle.hourlyRate;
+    const totalCost =
+      durationHours >= 24
+        ? Math.ceil(durationHours / 24) * selectedVehicle.dailyRate
+        : durationHours * selectedVehicle.hourlyRate;
 
-  try {
-    const newTx = await apiClient.post<Transaction>('/transactions', {
-      userId: activeCustomer.id,
-      vehicleId: selectedVehicle.id,
-      userName: activeCustomer.fullName,
-      vehicleName: selectedVehicle.name,
-      vehicleType: selectedVehicle.type,
-      licensePlate: selectedVehicle.licensePlate,
-      startDateTime: new Date().toISOString(),
-      endDateTime: new Date(Date.now() + durationHours * 3600 * 1000).toISOString(),
-      durationHours,
-      totalCost,
-      status: 'pending_verification',
-      paymentStatus: 'paid',
-      paymentMethod,
-      pickupHub,
-      dropoffHub,
-    });
+    try {
+      const newTx = await apiClient.post<Transaction>('/transactions', {
+        userId: activeCustomer.id,
+        vehicleId: selectedVehicle.id,
+        userName: activeCustomer.fullName,
+        vehicleName: selectedVehicle.name,
+        vehicleType: selectedVehicle.type,
+        licensePlate: selectedVehicle.licensePlate,
+        startDateTime: new Date().toISOString(),
+        endDateTime: new Date(Date.now() + durationHours * 3600 * 1000).toISOString(),
+        durationHours,
+        totalCost,
+        status: 'pending_verification',
+        paymentStatus: 'paid',
+        paymentMethod,
+        pickupHub,
+        dropoffHub,
+      });
 
-    setBookingSuccess(newTx);
-    await fetchVehicles(); // refresh list (kendaraan berubah jadi reserved)
-  } catch (err) {
-    Alert.alert('Gagal', err instanceof Error ? err.message : 'Unknown error');
-  }
-};
+      setBookingSuccess(newTx);
+      await fetchVehicles(); // refresh list (kendaraan berubah jadi reserved)
+      await Promise.all([fetchVehicles(), fetchTransactions()]);
+    } catch (err) {
+      Alert.alert('Gagal', err instanceof Error ? err.message : 'Unknown error');
+    }
+  };
 
   // -------- RENDER ITEM --------
   const renderVehicleItem = ({ item }: { item: Vehicle }) => {
@@ -410,32 +254,54 @@ const handleConfirmBorrow = async () => {
   };
 
   // -------- RENDER TRIP ITEM --------
-  const renderTripItem = ({ item }: { item: Transaction }) => {
-    const meta = TX_STATUS_META[item.status];
-    return (
-      <View style={styles.tripCard}>
-        <View style={styles.cardRow}>
-          <Text style={styles.tripTitle}>{item.vehicleName}</Text>
-          <View style={[styles.badge, { backgroundColor: meta.bg }]}>
-            <Text style={[styles.badgeText, { color: meta.fg }]}>{meta.label}</Text>
-          </View>
-        </View>
-        <Text style={styles.tripSub}>
-          {new Date(item.startDateTime).toLocaleDateString('id-ID')} • {item.durationHours} jam
-        </Text>
-        <View style={styles.tripFooter}>
-          <Text style={styles.tripCost}>Total: <Text style={{ fontWeight: 'bold' }}>${item.totalCost.toFixed(2)}</Text></Text>
-          <Text style={styles.tripId}>{item.id}</Text>
+const renderTripItem = ({ item }: { item: Transaction }) => {
+  const meta = TX_STATUS_META[item.status] ?? {
+    label: item.status,
+    bg: '#e2e8f0',
+    fg: '#475569',
+  };
+
+  const dateText = item.startDateTime
+    ? new Date(item.startDateTime).toLocaleDateString('id-ID')
+    : '-';
+
+  const durationText = item.durationHours
+    ? `${item.durationHours} jam`
+    : (item as any).totalDays
+    ? `${(item as any).totalDays} hari`
+    : '-';
+
+  return (
+    <View style={styles.tripCard}>
+      <View style={styles.cardRow}>
+        <Text style={styles.tripTitle}>{item.vehicleName}</Text>
+        <View style={[styles.badge, { backgroundColor: meta.bg }]}>
+          <Text style={[styles.badgeText, { color: meta.fg }]}>{meta.label}</Text>
         </View>
       </View>
-    );
-  };
+      <Text style={styles.tripSub}>
+        {dateText} • {durationText}
+      </Text>
+      <View style={styles.tripFooter}>
+        <Text style={styles.tripCost}>
+          Total:{' '}
+          <Text style={{ fontWeight: 'bold' }}>
+            Rp {Number(item.totalCost ?? 0).toLocaleString('id-ID')}
+          </Text>
+        </Text>
+        <Text style={styles.tripId}>{item.id}</Text>
+      </View>
+    </View>
+  );
+};
+
+  const insets = useSafeAreaInsets();
 
   // ============================================================
   // RENDER
   // ============================================================
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
 
       {/* HEADER */}
@@ -460,10 +326,10 @@ const handleConfirmBorrow = async () => {
             />
           </View>
           {error && (
-  <View style={{ backgroundColor: '#fee2e2', padding: 12, margin: 16, borderRadius: 8 }}>
-    <Text style={{ color: '#b91c1c', fontSize: 12 }}>⚠️ {error}</Text>
-  </View>
-)}
+            <View style={{ backgroundColor: '#fee2e2', padding: 12, margin: 16, borderRadius: 8 }}>
+              <Text style={{ color: '#b91c1c', fontSize: 12 }}>⚠️ {error}</Text>
+            </View>
+          )}
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -563,7 +429,7 @@ const handleConfirmBorrow = async () => {
       )}
 
       {/* BOTTOM TAB BAR */}
-      <View style={styles.tabBar}>
+      <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
         <TouchableOpacity style={styles.tabBtn} onPress={() => setActiveTab('catalog')}>
           <Text style={[styles.tabIcon, activeTab === 'catalog' && styles.tabActive]}>🚗</Text>
           <Text style={[styles.tabLabel, activeTab === 'catalog' && styles.tabActive]}>Katalog</Text>
@@ -888,7 +754,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e2e8f0',
     paddingVertical: 8,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 8,
   },
   tabBtn: { flex: 1, alignItems: 'center' },
   tabIcon: { fontSize: 18 },

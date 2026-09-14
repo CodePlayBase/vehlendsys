@@ -70,17 +70,57 @@ export function normalizeVehicles(raw: any[]): Vehicle[] {
   return raw.map(normalizeVehicle);
 }
 
+
+
 // ------------------------------------------------------------
 // Normalize transaction (jaga-jaga kalau schema beda juga)
 // ------------------------------------------------------------
-export function normalizeTransaction(raw: any): any {
+// export function normalizeTransaction(raw: any): any {
+//   return {
+//     ...raw,
+//     id: String(raw.id ?? ''),
+//     totalCost: Number(raw.totalCost ?? raw.total_cost ?? raw.total ?? 0),
+//     durationHours: Number(raw.durationHours ?? raw.duration_hours ?? raw.duration ?? 0),
+//     vehicleName: String(raw.vehicleName ?? raw.vehicle_name ?? '-'),
+//     userName: String(raw.userName ?? raw.user_name ?? '-'),
+//   };
+// }
+
+export function normalizeTransaction(raw: any) {
+  const start = raw.startDateTime ?? raw.startDate ?? '';
+  const end = raw.endDateTime ?? raw.endDate ?? '';
+  const totalDays = raw.totalDays ?? 0;
+  const durationHours = raw.durationHours ?? (totalDays ? totalDays * 24 : 0);
+
+  const typeRaw = String(raw.vehicleType ?? '').toLowerCase();
+  const vehicleType =
+    typeRaw === 'mobil' || typeRaw === 'car' ? 'car' :
+    typeRaw === 'motor' || typeRaw === 'bike' ? 'bike' :
+    typeRaw === 'sepeda' || typeRaw === 'bicycle' ? 'bicycle' :
+    'car';
+
   return {
-    ...raw,
     id: String(raw.id ?? ''),
-    totalCost: Number(raw.totalCost ?? raw.total_cost ?? raw.total ?? 0),
-    durationHours: Number(raw.durationHours ?? raw.duration_hours ?? raw.duration ?? 0),
-    vehicleName: String(raw.vehicleName ?? raw.vehicle_name ?? '-'),
-    userName: String(raw.userName ?? raw.user_name ?? '-'),
+    userId: String(raw.userId ?? ''),
+    vehicleId: String(raw.vehicleId ?? ''),
+    userName: String(raw.userName ?? '-'),
+    userPhone: raw.userPhone ?? undefined,
+    vehicleName: String(raw.vehicleName ?? '-'),
+    vehicleType,
+    licensePlate: raw.licensePlate ?? undefined,
+    startDateTime: String(start),
+    endDateTime: String(end),
+    durationHours,
+    totalDays,
+    totalCost: Number(raw.totalCost ?? raw.totalAmount ?? 0),
+    status: raw.status ?? 'pending_verification',
+    paymentStatus: raw.paymentStatus ?? 'pending',
+    paymentMethod: raw.paymentMethod ?? 'cash_at_hub',
+    pickupHub: String(raw.pickupHub ?? '-'),
+    dropoffHub: String(raw.dropoffHub ?? '-'),
+    notes: raw.notes ?? raw.requestNotes ?? undefined,
+    createdAt: String(raw.createdAt ?? new Date().toISOString()),
+    updatedAt: String(raw.updatedAt ?? raw.createdAt ?? new Date().toISOString()),
   };
 }
 
