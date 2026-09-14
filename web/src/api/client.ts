@@ -11,7 +11,77 @@ export interface ApiConfig {
 
 // Default to local mock JSON or swap with your live MockAPI.io endpoint:
 // e.g. "https://65c123456789abcd.mockapi.io/api/v1"
-export const API_BASE_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_BASE_URL) || 'https://api.vehiclelending.local/v1';
+export const API_BASE_URL = (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_API_BASE_URL) || 'http://localhost:4000/api';
+
+// ==== MOCK SUPPORT ====
+import {
+  INITIAL_VEHICLES,
+  INITIAL_USERS,
+  INITIAL_TRANSACTIONS,
+} from '../data/mockData';
+
+// Flag: true = pakai mock lokal, false = pakai HTTP fetch
+export const USE_MOCK_API = false;
+
+const MOCK_DELAY_MS = 300;
+
+// In-memory DB (biar update status persist selama session)
+let mockVehiclesDb: Vehicle[] = [...INITIAL_VEHICLES];
+let mockUsersDb = [...INITIAL_USERS];
+let mockTransactionsDb = [...INITIAL_TRANSACTIONS];
+
+async function mockRequest<T>(endpoint: string, options: RequestInit): Promise<T> {
+  await new Promise((r) => setTimeout(r, MOCK_DELAY_MS));
+
+  const method = (options.method || 'GET').toUpperCase();
+  const clean = endpoint.split('?')[0];
+
+  // ---- /vehicles ----
+  if (clean === '/vehicles' && method === 'GET') {
+    return mockVehiclesDb as unknown as T;
+  }
+
+  const vehIdMatch = clean.match(/^\/vehicles\/([^/]+)$/);
+  if (vehIdMatch) {
+    const id = vehIdMatch[1];
+    const idx = mockVehiclesDb.findIndex((v) => v.id === id);
+    if (idx === -1) throw new Error(`Vehicle ${id} not found`);
+
+    if (method === 'GET') return mockVehiclesDb[idx] as T;
+
+    if (method === 'PATCH' || method === 'PUT') {
+      const patch = options.body ? JSON.parse(options.body as string) : {};
+      const updated = { ...mockVehiclesDb[idx], ...patch };
+      mockVehiclesDb[idx] = updated;
+      return updated as T;
+    }
+
+    if (method === 'DELETE') {
+      mockVehiclesDb.splice(idx, 1);
+      return {} as T;
+    }
+  }
+
+  if (clean === '/vehicles' && method === 'POST') {
+    const body = options.body ? JSON.parse(options.body as string) : {};
+    const newItem = { ...body, id: `veh_${Date.now()}` };
+    mockVehiclesDb = [newItem, ...mockVehiclesDb];
+    return newItem as T;
+  }
+
+  // ---- /users (bonus, kalau nanti dipakai) ----
+  if (clean === '/users' && method === 'GET') {
+    return mockUsersDb as unknown as T;
+  }
+
+  // ---- /transactions (bonus) ----
+  if (clean === '/transactions' && method === 'GET') {
+    return mockTransactionsDb as unknown as T;
+  }
+
+  throw new Error(`[Mock] Unhandled ${method} ${endpoint}`);
+}
+// ==== END MOCK SUPPORT ====
 
 class ApiClient {
   private baseURL: string;
@@ -46,6 +116,9 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
+     if (USE_MOCK_API) {
+    return mockRequest<T>(endpoint, options);
+  }
     const url = `${this.baseURL}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
     const headers = {
       ...this.defaultHeaders,

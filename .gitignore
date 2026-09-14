@@ -1,3 +1,56 @@
+# Dependencies
+node_modules/
+
+# Build / generated
+build/
+dist/
+coverage/
+
+# Environment
+.env*
+!.env.example
+
+# Logs
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# TypeScript
+*.tsbuildinfo
+
+# Expo
+.expo/
+web-build/
+expo-env.d.ts
+
+# Expo generated native folders
+mobile/android/
+mobile/ios/
+
+# React Native / Metro
+.metro-health-check*
+
+# Native / signing files
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Generated native folders
+/ios
+/android
+
+# IDE
 .vs/
+
+# Visual Studio / .NET
 [Bb]in/
 [Oo]bj/
+
+# OS
+.DS_Store
+*.pem
